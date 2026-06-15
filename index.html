@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THE MATRIX — Chatbot & Učení</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:     #00FF41;
+      --green-dim: #008F11;
+      --green-dark:#003B00;
+      --bg:        #000000;
+      --card:      #050F05;
+      --border:    #00FF4133;
+      --text:      #00CC33;
+      --text-dim:  #005500;
+      --font:      'Share Tech Mono', 'Courier New', monospace;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      overflow-x: hidden;
+    }
+
+    /* ── MATRIX RAIN ── */
+    #matrix-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      opacity: 0.18;
+      pointer-events: none;
+    }
+
+    /* ── LAYOUT ── */
+    #app {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      text-align: center;
+      padding: 28px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      letter-spacing: 0.25em;
+    }
+    header h1 {
+      font-size: clamp(1.4rem, 4vw, 2.4rem);
+      color: var(--green);
+      text-shadow: 0 0 18px #00FF41aa, 0 0 40px #00FF4155;
+      animation: flicker 6s infinite;
+    }
+    header p {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-top: 6px;
+      letter-spacing: 0.3em;
+    }
+
+    @keyframes flicker {
+      0%,95%,100% { opacity: 1; }
+      96% { opacity: 0.6; }
+      97% { opacity: 1; }
+      98% { opacity: 0.4; }
+      99% { opacity: 1; }
+    }
+
+    /* ── TABS ── */
+    nav.tabs {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      padding: 16px 16px 0;
+    }
+    nav.tabs button {
+      background: transparent;
+      border: 1px solid var(--green-dim);
+      color: var(--text-dim);
+      font-family: var(--font);
+      font-size: 0.82rem;
+      letter-spacing: 0.18em;
+      padding: 9px 26px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    nav.tabs button:first-child { border-radius: 4px 0 0 4px; }
+    nav.tabs button:last-child  { border-radius: 0 4px 4px 0; }
+    nav.tabs button.active,
+    nav.tabs button:hover {
+      background: var(--green-dark);
+      color: var(--green);
+      border-color: var(--green);
+      text-shadow: 0 0 8px var(--green);
+    }
+
+    /* ── MAIN CONTENT ── */
+    main {
+      flex: 1;
+      padding: 20px 16px 32px;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .panel { display: none; }
+    .panel.active { display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 18px 20px;
+      box-shadow: 0 0 24px #00FF410a inset, 0 0 2px #00FF4122;
+    }
+    .card-title {
+      font-size: 0.7rem;
+      letter-spacing: 0.35em;
+      color: var(--green-dim);
+      margin-bottom: 14px;
+      text-transform: uppercase;
+    }
+
+    /* ── CHATBOT ── */
+    #chat-messages {
+      height: 360px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-right: 4px;
+    }
+    #chat-messages::-webkit-scrollbar { width: 4px; }
+    #chat-messages::-webkit-scrollbar-thumb { background: var(--green-dark); border-radius: 2px; }
+
+    .msg {
+      max-width: 82%;
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-size: 0.86rem;
+      line-height: 1.55;
+      animation: fadeIn 0.25s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: none; } }
+
+    .msg.bot {
+      align-self: flex-start;
+      background: #001a00;
+      border: 1px solid var(--green-dark);
+      color: var(--green);
+    }
+    .msg.bot::before {
+      content: '> SYSTÉM: ';
+      color: var(--green-dim);
+      font-size: 0.72rem;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: #001500;
+      border: 1px solid var(--green);
+      color: #aaffaa;
+    }
+    .msg.user::before {
+      content: 'TY: ';
+      color: var(--green-dim);
+      font-size: 0.72rem;
+    }
+    .msg.typing {
+      align-self: flex-start;
+      background: #001a00;
+      border: 1px solid var(--green-dark);
+      color: var(--green-dim);
+      font-size: 0.82rem;
+    }
+    .dots span {
+      animation: blink 1.2s infinite;
+      opacity: 0;
+    }
+    .dots span:nth-child(2) { animation-delay: 0.2s; }
+    .dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
+
+    #chat-input-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    #chat-input {
+      flex: 1;
+      background: #010d01;
+      border: 1px solid var(--green-dim);
+      border-radius: 4px;
+      color: var(--green);
+      font-family: var(--font);
+      font-size: 0.88rem;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      caret-color: var(--green);
+    }
+    #chat-input:focus { border-color: var(--green); box-shadow: 0 0 10px #00FF4122; }
+    #chat-input::placeholder { color: var(--text-dim); }
+
+    .btn {
+      background: transparent;
+      border: 1px solid var(--green);
+      color: var(--green);
+      font-family: var(--font);
+      font-size: 0.82rem;
+      letter-spacing: 0.12em;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.18s;
+    }
+    .btn:hover {
+      background: var(--green-dark);
+      box-shadow: 0 0 12px #00FF4155;
+      text-shadow: 0 0 6px var(--green);
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── UČENÍ ── */
+    #learn-menu {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .topic-btn {
+      background: #020d02;
+      border: 1px solid var(--green-dark);
+      border-radius: 5px;
+      color: var(--text-dim);
+      font-family: var(--font);
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      padding: 16px 12px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+      line-height: 1.5;
+    }
+    .topic-btn .icon { font-size: 1.5rem; display: block; margin-bottom: 8px; }
+    .topic-btn:hover, .topic-btn.selected {
+      background: var(--green-dark);
+      border-color: var(--green);
+      color: var(--green);
+      box-shadow: 0 0 16px #00FF4133;
+    }
+
+    #learn-content {
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+    }
+    #learn-content.visible { display: flex; }
+
+    #learn-back {
+      align-self: flex-start;
+      font-size: 0.78rem;
+      padding: 7px 16px;
+    }
+
+    #learn-title {
+      font-size: 1.1rem;
+      color: var(--green);
+      text-shadow: 0 0 12px #00FF4166;
+      letter-spacing: 0.2em;
+      margin-bottom: 4px;
+    }
+    #learn-body {
+      font-size: 0.84rem;
+      line-height: 1.75;
+      color: #88dd88;
+      white-space: pre-wrap;
+    }
+    #learn-body strong { color: var(--green); }
+
+    /* quiz */
+    #quiz-block { margin-top: 8px; }
+    .quiz-q {
+      font-size: 0.88rem;
+      color: var(--green);
+      margin-bottom: 12px;
+      line-height: 1.6;
+    }
+    .quiz-options { display: flex; flex-direction: column; gap: 8px; }
+    .quiz-opt {
+      background: #010d01;
+      border: 1px solid var(--green-dark);
+      border-radius: 4px;
+      color: var(--text-dim);
+      font-family: var(--font);
+      font-size: 0.82rem;
+      padding: 10px 14px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+    }
+    .quiz-opt:hover { border-color: var(--green); color: var(--green); background: var(--green-dark); }
+    .quiz-opt.correct { border-color: #00FF41; color: #00FF41; background: #002800; }
+    .quiz-opt.wrong   { border-color: #ff3333; color: #ff6666; background: #1a0000; }
+    #quiz-feedback {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      min-height: 1.5em;
+      color: var(--green-dim);
+      letter-spacing: 0.08em;
+    }
+    #quiz-next { margin-top: 10px; display: none; }
+
+    /* progress bar */
+    .progress-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+    .progress-bar {
+      flex: 1;
+      height: 4px;
+      background: #001500;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--green);
+      border-radius: 2px;
+      transition: width 0.4s;
+      box-shadow: 0 0 8px var(--green);
+    }
+
+    footer {
+      text-align: center;
+      padding: 14px;
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      letter-spacing: 0.2em;
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="matrix-canvas"></canvas>
+
+<div id="app">
+  <header>
+    <h1>// THE MATRIX TERMINAL //</h1>
+    <p>CHATBOT &amp; VÝUKOVÝ SYSTÉM — ENTER THE CODE</p>
+  </header>
+
+  <nav class="tabs">
+    <button class="active" onclick="switchTab('chat')">[ CHATBOT ]</button>
+    <button onclick="switchTab('learn')">[ UČENÍ ]</button>
+  </nav>
+
+  <main>
+    <!-- CHATBOT PANEL -->
+    <div class="panel active" id="panel-chat">
+      <div class="card">
+        <div class="card-title">&gt; inicializace komunikačního kanálu</div>
+        <div id="chat-messages">
+          <div class="msg bot">Vítej v Matrixu. Jsem Oracle — tvůj průvodce systémem. Na co se chceš zeptat?</div>
+        </div>
+        <div id="chat-input-row">
+          <input id="chat-input" type="text" placeholder="Zadej zprávu..." autocomplete="off" />
+          <button class="btn" id="send-btn" onclick="sendMessage()">ODESLAT</button>
+        </div>
+      </div>
+      <div class="card" style="font-size:0.72rem; color:var(--text-dim); line-height:1.7; letter-spacing:0.06em;">
+        <div class="card-title">&gt; nápověda systému</div>
+        Zkus se zeptat na: <span style="color:var(--green-dim)">co je Matrix</span> · <span style="color:var(--green-dim)">vysvětli kvantovou fyziku</span> · <span style="color:var(--green-dim)">napiš básničku</span> · <span style="color:var(--green-dim)">pomoz mi s matematikou</span> · nebo cokoliv jiného...
+      </div>
+    </div>
+
+    <!-- UČENÍ PANEL -->
+    <div class="panel" id="panel-learn">
+      <div class="card">
+        <div class="card-title">&gt; výběr modulu</div>
+        <div id="learn-menu">
+          <button class="topic-btn" onclick="loadTopic('python')"><span class="icon">🐍</span>Python<br>základy programování</button>
+          <button class="topic-btn" onclick="loadTopic('matrix-lore')"><span class="icon">💊</span>Matrix<br>červená nebo modrá</button>
+          <button class="topic-btn" onclick="loadTopic('ai')"><span class="icon">🤖</span>Umělá inteligence<br>jak to funguje</button>
+          <button class="topic-btn" onclick="loadTopic('networking')"><span class="icon">🌐</span>Sítě<br>internet & protokoly</button>
+          <button class="topic-btn" onclick="loadTopic('crypto')"><span class="icon">🔐</span>Kryptografie<br>šifrování & bezpečnost</button>
+          <button class="topic-btn" onclick="loadTopic('linux')"><span class="icon">🐧</span>Linux<br>příkazy terminálu</button>
+        </div>
+      </div>
+
+      <div class="card" id="learn-content">
+        <button class="btn" id="learn-back" onclick="backToMenu()">← ZPĚT</button>
+        <div>
+          <div id="learn-title"></div>
+          <div class="progress-row" id="progress-row" style="margin: 10px 0;">
+            <span id="progress-label">0 / 0</span>
+            <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div id="learn-body"></div>
+        <div id="quiz-block">
+          <div class="quiz-q" id="quiz-q"></div>
+          <div class="quiz-options" id="quiz-opts"></div>
+          <div id="quiz-feedback"></div>
+          <button class="btn" id="quiz-next" onclick="nextQuestion()">DALŠÍ OTÁZKA →</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>// MATRIX OS v2.0 — VŠECHNO JE KÓD //</footer>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════
+   MATRIX RAIN
+═══════════════════════════════════════════ */
+(function(){
+  const canvas = document.getElementById('matrix-canvas');
+  const ctx = canvas.getContext('2d');
+  const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEF$#@%&01';
+  let cols, drops;
+  function resize(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols = Math.floor(canvas.width / 18);
+    drops = Array(cols).fill(1);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  setInterval(()=>{
+    ctx.fillStyle = 'rgba(0,0,0,0.055)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.font = '15px Share Tech Mono, monospace';
+    drops.forEach((y,i)=>{
+      const ch = chars[Math.floor(Math.random()*chars.length)];
+      const bright = Math.random() > 0.93;
+      ctx.fillStyle = bright ? '#afffaf' : '#00AA22';
+      ctx.fillText(ch, i*18, y*18);
+      if(y*18 > canvas.height && Math.random() > 0.975) drops[i]=0;
+      drops[i]++;
+    });
+  }, 42);
+})();
+
+/* ═══════════════════════════════════════════
+   TABS
+═══════════════════════════════════════════ */
+function switchTab(tab){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+tab).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+/* ═══════════════════════════════════════════
+   CHATBOT — Claude API
+═══════════════════════════════════════════ */
+const chatMessages = document.getElementById('chat-messages');
+const chatInput    = document.getElementById('chat-input');
+const sendBtn      = document.getElementById('send-btn');
+
+let conversationHistory = [];
+
+chatInput.addEventListener('keydown', e => { if(e.key==='Enter') sendMessage(); });
+
+function appendMsg(text, role){
+  const d = document.createElement('div');
+  d.className = 'msg ' + role;
+  d.textContent = text;
+  chatMessages.appendChild(d);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return d;
+}
+
+function showTyping(){
+  const d = document.createElement('div');
+  d.className = 'msg typing';
+  d.innerHTML = 'Oracle přemýšlí <span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+  chatMessages.appendChild(d);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return d;
+}
+
+async function sendMessage(){
+  const text = chatInput.value.trim();
+  if(!text) return;
+  chatInput.value = '';
+  sendBtn.disabled = true;
+
+  appendMsg(text, 'user');
+  conversationHistory.push({ role:'user', content: text });
+
+  const typingEl = showTyping();
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        system: `Jsi Oracle — tajemný AI průvodce v prostředí Matrixu. Odpovídáš česky, stručně a s lehkým dramatickým nádechem terminálu. Používáš terminologické fráze jako "Kód říká...", "Systém odhaluje...", "Za oponou reality...". Jsi moudrý, laskavý a trochu záhadný. Pomáháš s čímkoliv — učením, programováním, filosofií, kreativitou. Odpovědi formátuj jako čistý text bez markdown symbolů.`,
+        messages: conversationHistory
+      })
+    });
+    const data = await res.json();
+    typingEl.remove();
+    const reply = data.content?.[0]?.text || 'Signál přerušen. Zkus to znovu...';
+    conversationHistory.push({ role:'assistant', content: reply });
+    appendMsg(reply, 'bot');
+  } catch(err) {
+    typingEl.remove();
+    appendMsg('Spojení s Oraclem přerušeno. Systém nedostupný.', 'bot');
+  }
+  sendBtn.disabled = false;
+  chatInput.focus();
+}
+
+/* ═══════════════════════════════════════════
+   VÝUKA — témata + kvízy
+═══════════════════════════════════════════ */
+const topics = {
+  python: {
+    title: '🐍 PYTHON — ZÁKLADY',
+    body: `Python je jeden z nejpopulárnějších programovacích jazyků na světě. Čte se téměř jako angličtina.
+
+<strong>Proměnné:</strong>
+jmeno = "Neo"
+vek = 27
+vyska = 1.85
+
+<strong>Podmínky:</strong>
+if vek >= 18:
+    print("Přijat do systému")
+else:
+    print("Přístup zamítnut")
+
+<strong>Cykly:</strong>
+for i in range(5):
+    print(f"Iterace {i}")
+
+<strong>Funkce:</strong>
+def pozdrav(jmeno):
+    return f"Vítej, {jmeno}"
+
+print(pozdrav("Neo"))
+
+Klíč k Matrixu: kód je jen jazyk, kterým mluvíš se systémem.`,
+    questions: [
+      { q: 'Jak v Pythonu uložíš číslo 42 do proměnné x?', opts: ['x = 42', 'int x = 42', 'var x = 42', 'x := 42'], ans: 0 },
+      { q: 'Co vypíše: print("Matrix"[0])?', opts: ['M', 'Matrix', 'Error', 'a'], ans: 0 },
+      { q: 'Jak začíná funkce v Pythonu?', opts: ['function název():', 'def název():', 'func název():', 'fn název():'], ans: 1 },
+      { q: 'Co dělá range(3)?', opts: ['Vytvoří seznam [1,2,3]', 'Vytvoří rozsah [0,1,2]', 'Vrátí číslo 3', 'Nic'], ans: 1 },
+    ]
+  },
+  'matrix-lore': {
+    title: '💊 SVĚT MATRIXU',
+    body: `Matrix je simulace reality vytvořená stroji v roce 1999 (nebo 2199?).
+
+<strong>Červená pilulka vs. Modrá pilulka:</strong>
+Modrá → zůstaneš v iluzi, pohodlný život ve snu.
+Červená → probudíš se do surové reality, ale budeš svobodný.
+
+<strong>Klíčové pojmy:</strong>
+Agents — programy hlídající systém
+Zion — poslední město svobodných lidí
+The One — vyvolený, schopný ohýbat pravidla kódu
+Oracle — věštkyně, která ví více než říká
+Architect — tvůrce Matrixu, stroj za vším
+
+<strong>Filosofická otázka:</strong>
+"Jak poznáš, že to co vnímáš, je skutečné?"
+Descartes se ptal stejně v 17. století.
+Mozek v kádi — myšlenkový experiment.
+
+<strong>Realita dle Matrixu:</strong>
+Vše co vidíme, slyšíme, cítíme — jsou elektrické signály interpretované mozkem.`,
+    questions: [
+      { q: 'Co symbolizuje červená pilulka?', opts: ['Spánek a iluzi', 'Probuzení a pravdu', 'Vstup do systému', 'Smrt'], ans: 1 },
+      { q: 'Kdo jsou "Agents"?', opts: ['Osvobození lidé', 'Stroje z reálného světa', 'Programy chránící Matrix', 'Věštci'], ans: 2 },
+      { q: 'Co je Zion?', opts: ['Program v Matrixu', 'Poslední svobodné město lidí', 'Jméno Architekta', 'Typ kódu'], ans: 1 },
+      { q: 'Jaký filozof se ptal podobných otázek o realitě jako Matrix?', opts: ['Plato', 'Descartes', 'Nietzsche', 'Všichni uvedení'], ans: 3 },
+    ]
+  },
+  ai: {
+    title: '🤖 UMĚLÁ INTELIGENCE',
+    body: `AI = systémy schopné provádět úkoly, které normálně vyžadují lidskou inteligenci.
+
+<strong>Typy AI:</strong>
+Narrow AI — specializovaná (šachy, překlad, obrazy)
+General AI — stejně schopná jako člověk (zatím neexistuje)
+Super AI — přesahuje lidské schopnosti (teorie)
+
+<strong>Jak funguje strojové učení:</strong>
+1. Vstupní data (miliony příkladů)
+2. Model se učí vzory
+3. Predikce na nových datech
+4. Zpětná vazba a vylepšení
+
+<strong>Neuronové sítě:</strong>
+Inspirovány mozkem. Vrstvy "neuronů" zpracovávají data.
+Input → Skryté vrstvy → Output
+
+<strong>Large Language Models (LLM):</strong>
+Modely jako já. Trénujeme se na obrovském množství textu.
+Předpovídáme, jaké slovo/token přijde jako další.
+
+<strong>Zajímavý fakt:</strong>
+GPT-4 byl trénován na ~1 bilionu tokenů textu.`,
+    questions: [
+      { q: 'Co je "Narrow AI"?', opts: ['AI překonávající lidi ve všem', 'AI specializovaná na jeden úkol', 'Typ robota', 'Databáze'], ans: 1 },
+      { q: 'Na čem jsou inspirovány neuronové sítě?', opts: ['Počítačových čipech', 'Lidském mozku', 'Internetu', 'Matrixu'], ans: 1 },
+      { q: 'Jak LLM generují text?', opts: ['Kopírují z databáze', 'Předpovídají nejpravděpodobnější další token', 'Náhodně volí slova', 'Překládají kód'], ans: 1 },
+      { q: 'Co zkratka AI znamená?', opts: ['Automated Intelligence', 'Artificial Intelligence', 'Advanced Internet', 'Algorithm Interface'], ans: 1 },
+    ]
+  },
+  networking: {
+    title: '🌐 SÍTĚ & INTERNET',
+    body: `Internet je globální síť miliard zařízení komunikujících přes standardní protokoly.
+
+<strong>Základní pojmy:</strong>
+IP adresa — adresa zařízení v síti (např. 192.168.1.1)
+MAC adresa — fyzická adresa síťové karty
+DNS — překládá doménová jména na IP adresy
+Router — směruje provoz mezi sítěmi
+
+<strong>Protokoly:</strong>
+TCP/IP — základní protokol internetu
+HTTP/HTTPS — přenos webových stránek
+SSH — bezpečné vzdálené připojení
+FTP — přenos souborů
+
+<strong>Jak funguje web request:</strong>
+1. Zadáš URL do prohlížeče
+2. DNS přeloží doménu na IP
+3. Prohlížeč pošle HTTP request
+4. Server odpoví HTML/CSS/JS
+5. Prohlížeč zobrazí stránku
+
+<strong>Vrstvy OSI modelu:</strong>
+7. Aplikační → 6. Prezentační → 5. Relační
+4. Transportní → 3. Síťová → 2. Linková → 1. Fyzická`,
+    questions: [
+      { q: 'Co dělá DNS server?', opts: ['Šifruje data', 'Překládá doménová jména na IP adresy', 'Přiděluje MAC adresy', 'Filtruje spam'], ans: 1 },
+      { q: 'Na kolika vrstvách je postaven OSI model?', opts: ['5', '6', '7', '8'], ans: 2 },
+      { q: 'Co znamená HTTPS oproti HTTP?', opts: ['Rychlejší přenos', 'Šifrované zabezpečené spojení', 'Novější verze', 'Podpora videa'], ans: 1 },
+      { q: 'Jaký protokol se používá pro vzdálené bezpečné připojení?', opts: ['FTP', 'HTTP', 'SSH', 'DNS'], ans: 2 },
+    ]
+  },
+  crypto: {
+    title: '🔐 KRYPTOGRAFIE',
+    body: `Kryptografie = umění skrývání informací. Existuje tisíce let.
+
+<strong>Symetrické šifrování:</strong>
+Stejný klíč pro šifrování i dešifrování.
+Příklad: AES-256 (používá i NSA)
+Problém: jak bezpečně předat klíč?
+
+<strong>Asymetrické šifrování:</strong>
+Veřejný klíč — kdokoli může zašifrovat
+Soukromý klíč — jen ty dešifruješ
+Příklad: RSA, ECC
+Základ HTTPS a digitálních podpisů
+
+<strong>Hash funkce:</strong>
+Jednosměrná transformace dat.
+SHA-256("Neo") → vždy stejný hash
+Změna 1 znaku = úplně jiný hash
+Nelze zpětně zjistit původní data
+
+<strong>Praktické použití:</strong>
+🔒 HTTPS — šifrování webového provozu
+💰 Bitcoin — blockchain a digitální podpisy
+🔑 Správci hesel — AES šifrování
+📨 Signal — end-to-end šifrování
+
+<strong>Caesarova šifra:</strong>
+Nejstarší šifra — posun písmen o N pozic.
+"NEO" s posunem 3 = "QHR"`,
+    questions: [
+      { q: 'Co je veřejný klíč v asymetrickém šifrování?', opts: ['Tajný klíč pouze pro tebe', 'Klíč sdílený s kýmkoli pro šifrování', 'Heslo do databáze', 'Typ certifikátu'], ans: 1 },
+      { q: 'Co dělá hash funkce?', opts: ['Šifruje a dešifruje data', 'Jednosměrně transformuje data', 'Generuje hesla', 'Komprimuje soubory'], ans: 1 },
+      { q: 'Jaký standard šifrování používá i NSA?', opts: ['RSA-2048', 'AES-256', 'MD5', 'SHA-1'], ans: 1 },
+      { q: 'Co je Caesarova šifra?', opts: ['Moderní RSA algoritmus', 'Posun písmen o pevný počet pozic', 'Typ hashe', 'Blockchain protokol'], ans: 1 },
+    ]
+  },
+  linux: {
+    title: '🐧 LINUX TERMINÁL',
+    body: `Linux — operační systém svobody. Používá >90% serverů na světě.
+
+<strong>Základní příkazy:</strong>
+ls          — zobraz soubory v adresáři
+cd /cesta   — přejdi do adresáře
+pwd         — zobraz aktuální cestu
+mkdir nazev — vytvoř adresář
+rm soubor   — smaž soubor
+cp a b      — zkopíruj soubor a do b
+mv a b      — přesuň/přejmenuj
+
+<strong>Čtení souborů:</strong>
+cat soubor  — zobraz obsah
+less soubor — stránkované čtení
+head -n 10  — prvních 10 řádků
+tail -f log — sleduj živě log soubor
+
+<strong>Síťové příkazy:</strong>
+ping google.com   — test připojení
+ifconfig / ip a   — zobraz síťová rozhraní
+ssh user@server   — vzdálené připojení
+wget URL          — stáhni soubor
+
+<strong>Správa procesů:</strong>
+ps aux      — seznam procesů
+kill PID    — ukonči proces
+top / htop  — monitor systému
+chmod 755   — nastav oprávnění
+
+<strong>Terminálový trik:</strong>
+Ctrl+C = přeruš proces
+Ctrl+Z = pozastav
+Tab = autocomplete`,
+    questions: [
+      { q: 'Jaký příkaz zobrazí soubory v aktuálním adresáři?', opts: ['dir', 'ls', 'show', 'list'], ans: 1 },
+      { q: 'Co dělá příkaz "tail -f"?', opts: ['Zobrazí konec souboru jednorázově', 'Sleduje soubor živě v reálném čase', 'Smaže konec souboru', 'Přejmenuje soubor'], ans: 1 },
+      { q: 'Jak se připojíš vzdáleně přes Linux terminal?', opts: ['ftp user@server', 'ssh user@server', 'connect user@server', 'remote user@server'], ans: 1 },
+      { q: 'Co dělá "chmod 755 soubor"?', opts: ['Smaže soubor', 'Nastaví oprávnění souboru', 'Zkopíruje soubor', 'Přesune soubor'], ans: 1 },
+    ]
+  }
+};
+
+let currentTopic = null;
+let currentQ = 0;
+let score = 0;
+let answered = false;
+
+function loadTopic(key){
+  currentTopic = topics[key];
+  currentQ = 0; score = 0; answered = false;
+  document.getElementById('learn-menu').parentElement.style.display = 'none';
+  const lc = document.getElementById('learn-content');
+  lc.classList.add('visible');
+  document.getElementById('learn-title').textContent = currentTopic.title;
+  document.getElementById('learn-body').innerHTML = currentTopic.body;
+  updateProgress();
+  showQuestion();
+}
+
+function backToMenu(){
+  document.getElementById('learn-content').classList.remove('visible');
+  document.getElementById('learn-menu').parentElement.style.display = '';
+}
+
+function updateProgress(){
+  const total = currentTopic.questions.length;
+  const pct = total > 0 ? Math.round((currentQ / total) * 100) : 0;
+  document.getElementById('progress-label').textContent = `${currentQ} / ${total}`;
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+function showQuestion(){
+  const qblock = document.getElementById('quiz-block');
+  const qs = currentTopic.questions;
+  if(currentQ >= qs.length){
+    document.getElementById('quiz-q').textContent = `✅ Dokončeno! Skóre: ${score} / ${qs.length}`;
+    document.getElementById('quiz-opts').innerHTML = '';
+    document.getElementById('quiz-feedback').textContent = score === qs.length ? '🟢 Perfektní výkon. Jsi připraven vstoupit do Matrixu.' : score >= qs.length/2 ? '🟡 Dobrý výsledek. Kód v tobě roste.' : '🔴 Trénuj dál. Systém tě ještě nepustí.';
+    document.getElementById('quiz-next').style.display = 'none';
+    return;
+  }
+  answered = false;
+  const q = qs[currentQ];
+  document.getElementById('quiz-q').textContent = `[${currentQ+1}/${qs.length}] ${q.q}`;
+  document.getElementById('quiz-feedback').textContent = '';
+  document.getElementById('quiz-next').style.display = 'none';
+  const optsEl = document.getElementById('quiz-opts');
+  optsEl.innerHTML = '';
+  q.opts.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'quiz-opt';
+    btn.textContent = opt;
+    btn.onclick = () => checkAnswer(i, q.ans);
+    optsEl.appendChild(btn);
+  });
+}
+
+function checkAnswer(chosen, correct){
+  if(answered) return;
+  answered = true;
+  const opts = document.querySelectorAll('.quiz-opt');
+  opts[correct].classList.add('correct');
+  if(chosen !== correct){
+    opts[chosen].classList.add('wrong');
+    document.getElementById('quiz-feedback').textContent = '❌ Špatně. Správná odpověď je zvýrazněna zeleně.';
+  } else {
+    score++;
+    document.getElementById('quiz-feedback').textContent = '✅ Správně! Systém zaznamenal.';
+  }
+  currentQ++;
+  updateProgress();
+  document.getElementById('quiz-next').style.display = 'inline-block';
+}
+
+function nextQuestion(){ showQuestion(); }
+</script>
+</body>
+</html>
